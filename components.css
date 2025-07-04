@@ -1,0 +1,335 @@
+/* Speech to Speech 比較デモ - コンポーネント */
+
+/* レイアウト */
+.app-container {
+  min-height: 100vh;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: var(--space-md);
+}
+
+/* ヘッダー */
+.app-header {
+  background: var(--bg-secondary);
+  padding: var(--space-lg);
+  border-radius: var(--border-radius);
+  margin-bottom: var(--space-lg);
+  text-align: center;
+}
+
+.app-header h1 {
+  font-size: var(--font-size-xl);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+/* メインコンテンツ */
+.app-main {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+@media (max-width: 768px) {
+  .app-main {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* コントロールパネル */
+.control-panel {
+  background: var(--bg-secondary);
+  padding: var(--space-md);
+  border-radius: var(--border-radius);
+  height: fit-content;
+}
+
+.control-panel h2 {
+  font-size: var(--font-size-lg);
+  margin-bottom: var(--space-md);
+  color: var(--text-primary);
+}
+
+.input-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.file-input {
+  display: none;
+}
+
+.file-label {
+  display: block;
+  background: var(--secondary-color);
+  color: white;
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--border-radius);
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 0.2s;
+}
+
+.file-label:hover {
+  background: #52525b;
+}
+
+/* 音声可視化エリア */
+.audio-visualizer {
+  background: var(--bg-accent);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  height: 120px;
+  padding: var(--space-md);
+}
+
+.waveform-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ダッシュボード */
+.visualization-dashboard {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--space-md);
+}
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.dashboard-header h2 {
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.dashboard-controls {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/* メトリクス */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.metric-card {
+  background: var(--bg-accent);
+  padding: var(--space-md);
+  border-radius: var(--border-radius);
+  text-align: center;
+}
+
+.metric-card h3 {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-sm) 0;
+}
+
+.metric-value {
+  font-size: var(--font-size-xl);
+  font-weight: bold;
+  color: var(--primary-color);
+  margin: 0;
+}
+
+.metric-unit {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-top: var(--space-xs);
+}
+
+/* フローチャート */
+.flow-chart {
+  background: var(--bg-accent);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--space-lg);
+  min-height: 200px;
+}
+
+.comparison-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+/* 比較セクション */
+.comparison-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+}
+
+@media (max-width: 768px) {
+  .comparison-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+.api-demo {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: var(--space-md);
+}
+
+.demo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.demo-header h3 {
+  font-size: var(--font-size-lg);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--font-size-sm);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.status-indicator[data-status="processing"] .status-dot {
+  background: var(--warning-color);
+  animation: pulse 2s infinite;
+}
+
+.status-indicator[data-status="complete"] .status-dot {
+  background: var(--success-color);
+}
+
+.status-indicator[data-status="error"] .status-dot {
+  background: var(--error-color);
+}
+
+/* プロセスステップ */
+.process-steps {
+  margin-bottom: var(--space-lg);
+}
+
+.step {
+  background: var(--bg-accent);
+  padding: var(--space-sm);
+  margin-bottom: var(--space-xs);
+  border-radius: var(--border-radius);
+  border-left: 3px solid var(--primary-color);
+  font-size: var(--font-size-sm);
+}
+
+/* 特徴リスト */
+.features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.feature-item {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+
+/* 比較チャート */
+.comparison-chart {
+  padding: var(--space-md);
+}
+
+.comparison-chart h4 {
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  margin-bottom: var(--space-sm);
+}
+
+.chart-bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.chart-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.chart-label {
+  width: 100px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.chart-bar {
+  height: 24px;
+  border-radius: var(--border-radius);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 var(--space-xs);
+  min-width: 80px;
+  position: relative;
+  transition: width 0.5s ease-out;
+}
+
+.chart-bar.realtime {
+  background: linear-gradient(90deg, var(--primary-color), #2563eb);
+}
+
+.chart-bar.individual {
+  background: linear-gradient(90deg, var(--secondary-color), #475569);
+}
+
+.chart-value {
+  color: white;
+  font-size: var(--font-size-sm);
+  font-weight: bold;
+}
+
+.cost-comparison {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.cost-item {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.cost-savings {
+  font-size: var(--font-size-sm);
+  color: var(--success-color);
+  font-weight: bold;
+  margin-top: var(--space-xs);
+}
