@@ -135,26 +135,40 @@ recordBtn.onclick = async () => {
           const formData = new FormData();
           formData.append('audio', audioBlob, mimeType === 'audio/ogg; codecs=opus' ? 'audio.ogg' : 'audio.webm');
           formData.append('set', set);
-          const res = await fetch('http://localhost:3001/api/modular', {
-            method: 'POST',
-            body: formData
-          });
-          const data = await res.json();
-          transcriptDiv.textContent = data.message || 'Received response.';
-          console.log('Received modular response:', data);
-          // Play audio if returned
-          const audioRes = await fetch('http://localhost:3001/api/modular?audio=1&set=' + set, {
-            method: 'POST',
-            body: formData
-          });
-          if (audioRes.ok) {
-            const audioBlob = await audioRes.blob();
-            audioPlayer.src = URL.createObjectURL(audioBlob);
-            audioPlayer.style.display = '';
-            audioPlayer.play();
-            console.log('Playing TTS audio response');
-          } else {
-            console.warn('No audio returned from backend');
+          try {
+            const res = await fetch('http://localhost:3001/api/modular', {
+              method: 'POST',
+              body: formData
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              transcriptDiv.textContent = `Error: ${data.error || 'Unknown error'}\n${data.details || ''}`;
+              console.error('Backend error:', data);
+              audioPlayer.style.display = 'none';
+              return;
+            }
+            transcriptDiv.textContent = data.message || 'Received response.';
+            console.log('Received modular response:', data);
+
+            // Play audio if returned
+            const audioRes = await fetch('http://localhost:3001/api/modular?audio=1&set=' + set, {
+              method: 'POST',
+              body: formData
+            });
+            if (audioRes.ok) {
+              const audioBlob = await audioRes.blob();
+              audioPlayer.src = URL.createObjectURL(audioBlob);
+              audioPlayer.style.display = '';
+              audioPlayer.play();
+              console.log('Playing TTS audio response');
+            } else {
+              audioPlayer.style.display = 'none';
+              console.warn('No audio returned from backend');
+            }
+          } catch (err) {
+            transcriptDiv.textContent = 'Network or server error: ' + (err.message || err);
+            audioPlayer.style.display = 'none';
+            console.error('Fetch/network error:', err);
           }
         }
       };
