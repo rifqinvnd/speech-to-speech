@@ -1,6 +1,6 @@
-/* Speech to Speech 比較デモ - コンポーネント */
+/* Speech to Speech Comparison Demo - Component */
 
-/* レイアウト */
+/* Layout */
 .app-container {
   min-height: 100vh;
   max-width: 1200px;
@@ -8,7 +8,7 @@
   padding: var(--space-md);
 }
 
-/* ヘッダー */
+/* Header */
 .app-header {
   background: var(--bg-secondary);
   padding: var(--space-lg);
@@ -23,7 +23,7 @@
   margin: 0;
 }
 
-/* メインコンテンツ */
+/* Main Content */
 .app-main {
   display: grid;
   grid-template-columns: 300px 1fr;
@@ -37,7 +37,7 @@
   }
 }
 
-/* コントロールパネル */
+/* Control Panel */
 .control-panel {
   background: var(--bg-secondary);
   padding: var(--space-md);
@@ -77,7 +77,7 @@
   background: #52525b;
 }
 
-/* 音声可視化エリア */
+/* Audio Visualization Area */
 .audio-visualizer {
   background: var(--bg-accent);
   border: 1px solid var(--border-color);
@@ -95,7 +95,7 @@
   font-size: var(--font-size-sm);
 }
 
-/* ダッシュボード */
+/* Dashboard */
 .visualization-dashboard {
   background: var(--bg-primary);
   border: 1px solid var(--border-color);
@@ -121,7 +121,7 @@
   gap: var(--space-sm);
 }
 
-/* メトリクス */
+/* Metrics */
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -155,7 +155,7 @@
   margin-top: var(--space-xs);
 }
 
-/* フローチャート */
+/* Flowchart */
 .flow-chart {
   background: var(--bg-accent);
   border: 1px solid var(--border-color);
@@ -172,7 +172,7 @@
   color: var(--text-muted);
 }
 
-/* 比較セクション */
+/* Comparison Section */
 .comparison-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -234,7 +234,7 @@
   background: var(--error-color);
 }
 
-/* プロセスステップ */
+/* Process Steps */
 .process-steps {
   margin-bottom: var(--space-lg);
 }
@@ -248,7 +248,7 @@
   font-size: var(--font-size-sm);
 }
 
-/* 特徴リスト */
+/* Features List */
 .features {
   display: flex;
   flex-direction: column;
@@ -260,8 +260,7 @@
   color: var(--text-secondary);
 }
 
-
-/* 比較チャート */
+/* Comparison Chart */
 .comparison-chart {
   padding: var(--space-md);
 }

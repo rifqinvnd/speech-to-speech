@@ -1,4 +1,4 @@
-/* 基本アニメーション */
+/* Basic Animation */
 
 @keyframes fadeIn {
   from { opacity: 0; }
@@ -10,13 +10,13 @@
   50% { opacity: 0.5; }
 }
 
-/* 音声レベル表示用 */
+/* For Audio Level Display */
 @keyframes waveform {
   0%, 100% { transform: scaleY(1); }
   50% { transform: scaleY(0.3); }
 }
 
-/* ローディング */
+/* Loading */
 .loading {
   animation: pulse 2s infinite;
 }
@@ -25,7 +25,7 @@
   animation: fadeIn 0.3s ease-out;
 }
 
-/* プロセス状態表示 */
+/* Process Status Display */
 .processing {
   position: relative;
 }

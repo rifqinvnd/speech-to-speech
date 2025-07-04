@@ -1,14 +1,15 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Voice Comparison Lab</title>
-    <meta name="description" content="OpenAI Realtime API vs 個別実装の比較デモ">
+    <meta name="description" content="OpenAI Realtime API vs Individual Implementation Comparison Demo">
     
     <!-- スタイルシート -->
-    <link rel="stylesheet" href="styles/design-system.css">
-    <link rel="stylesheet" href="styles/components.css">
+    <link rel="stylesheet" href="./components.css">
+    <link rel="stylesheet" href="./design-system.css">
+    <link rel="stylesheet" href="./animations.css">
     
 </head>
 <body>
@@ -16,7 +17,7 @@
     <div class="app-container">
         <!-- ヘッダー -->
         <header class="app-header">
-            <h1>🎤 Speech to Speech API比較</h1>
+            <h1>🎤 Speech to Speech API Comparison</h1>
         </header>
 
         <!-- メインコンテンツ -->
@@ -24,9 +25,9 @@
             <!-- コントロールパネル -->
             <aside class="control-panel">
                 <section class="audio-input-section">
-                    <h2>音声入力</h2>
+                    <h2>Audio Input</h2>
                     <div class="input-controls">
-                        <button class="record-btn">🎙️ 録音開始</button>
+                        <button class="record-btn">🎙️ Start Recording</button>
                     </div>
                     <div class="audio-visualizer">
                         <div class="waveform-placeholder"></div>
@@ -37,27 +38,27 @@
             <!-- 可視化ダッシュボード -->
             <section class="visualization-dashboard">
                 <div class="dashboard-header">
-                    <h2>リアルタイム比較</h2>
+                    <h2>Realtime Comparison</h2>
                     <div class="dashboard-controls">
-                        <button class="start-comparison-btn">比較開始</button>
-                        <button class="reset-btn">リセット</button>
+                        <button class="start-comparison-btn">Start Comparison</button>
+                        <button class="reset-btn">Reset</button>
                     </div>
                 </div>
                 
                 <!-- メトリクス表示 -->
                 <div class="metrics-grid">
                     <div class="metric-card">
-                        <h3>処理時間</h3>
+                        <h3>Processing Time</h3>
                         <div class="metric-value" id="processing-time">--</div>
                         <div class="metric-unit">ms</div>
                     </div>
                     <div class="metric-card">
-                        <h3>推定コスト</h3>
+                        <h3>Estimated Cost</h3>
                         <div class="metric-value" id="estimated-cost">--</div>
-                        <div class="metric-unit">¥/分</div>
+                        <div class="metric-unit">¥/min</div>
                     </div>
                     <div class="metric-card">
-                        <h3>品質スコア</h3>
+                        <h3>Quality Score</h3>
                         <div class="metric-value" id="quality-score">--</div>
                         <div class="metric-unit">%</div>
                     </div>
@@ -65,7 +66,7 @@
 
                 <!-- 処理フローチャート -->
                 <div class="flow-chart">
-                    <div class="comparison-placeholder">比較結果がここに表示されます</div>
+                    <div class="comparison-placeholder">Comparison results will be displayed here</div>
                 </div>
             </section>
         </main>
@@ -78,23 +79,23 @@
                     <h3>OpenAI Realtime API</h3>
                     <div class="status-indicator" data-status="idle">
                         <span class="status-dot"></span>
-                        <span class="status-text">待機中</span>
+                        <span class="status-text">Idle</span>
                     </div>
                 </header>
                 
                 <div class="demo-content">
                     <!-- プロセス表示 -->
                     <div class="process-steps">
-                        <div class="step">1. WebSocket接続</div>
-                        <div class="step">2. 統合処理 (STT+LLM+TTS)</div>
-                        <div class="step">3. 音声出力</div>
+                        <div class="step">1. WebSocket Connection</div>
+                        <div class="step">2. Integrated Processing (STT+LLM+TTS)</div>
+                        <div class="step">3. Audio Output</div>
                     </div>
 
                     <!-- 特徴表示 -->
                     <div class="features">
-                        <div class="feature-item">✅ 低遅延 (320ms)</div>
-                        <div class="feature-item">✅ 割り込み対応</div>
-                        <div class="feature-item">⚠️ 高コスト ($18/時間)</div>
+                        <div class="feature-item">✅ Low Latency (320ms)</div>
+                        <div class="feature-item">✅ Supports Batching</div>
+                        <div class="feature-item">⚠️ High Cost ($18/hour)</div>
                     </div>
                 </div>
             </div>
@@ -102,26 +103,26 @@
             <!-- 個別実装側 -->
             <div class="api-demo individual-demo">
                 <header class="demo-header">
-                    <h3>個別実装 (STT + LLM + TTS)</h3>
+                    <h3>Individual Implementation (STT + LLM + TTS)</h3>
                     <div class="status-indicator" data-status="idle">
                         <span class="status-dot"></span>
-                        <span class="status-text">待機中</span>
+                        <span class="status-text">Idle</span>
                     </div>
                 </header>
                 
                 <div class="demo-content">
                     <!-- プロセス表示 -->
                     <div class="process-steps">
-                        <div class="step">1. 音声認識 (Whisper)</div>
-                        <div class="step">2. LLM処理 (GPT-4)</div>
-                        <div class="step">3. 音声合成 (TTS)</div>
+                        <div class="step">1. Speech Recognition (Whisper)</div>
+                        <div class="step">2. LLM Processing (GPT-4)</div>
+                        <div class="step">3. Speech Synthesis (TTS)</div>
                     </div>
 
                     <!-- 特徴表示 -->
                     <div class="features">
-                        <div class="feature-item">✅ 高カスタマイズ性</div>
-                        <div class="feature-item">✅ 中程度コスト ($5-10/時間)</div>
-                        <div class="feature-item">⚠️ 高遅延 (2-3秒)</div>
+                        <div class="feature-item">✅ High Customizability</div>
+                        <div class="feature-item">✅ Moderate Cost ($5-10/hour)</div>
+                        <div class="feature-item">⚠️ High Latency (2-3s)</div>
                     </div>
                 </div>
             </div>
@@ -130,6 +131,6 @@
     </div>
 
     <!-- スクリプト -->
-    <script src="scripts/main.js"></script>
+    <script type="module" src="/src/main.js"></script>
 </body>
 </html>
