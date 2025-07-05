@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import websocketPlugin from 'fastify-websocket';
 import dotenv from 'dotenv';
 import multipart from '@fastify/multipart';
+import cors from '@fastify/cors';
 import { FastifyRequest } from 'fastify';
 import fetch from 'node-fetch';
 import { FormData, Blob } from 'formdata-node';
@@ -12,6 +13,10 @@ dotenv.config();
 
 const fastify = Fastify({ logger: true });
 fastify.register(multipart);
+fastify.register(cors, {
+  origin: true,
+  credentials: true
+});
 
 // REST endpoint for Modular flow (stub)
 // --- Modular Speech-to-Speech Logic ---
