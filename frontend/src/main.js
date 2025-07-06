@@ -1,7 +1,5 @@
 import './style.css'
-import javascriptLogo from './javascript.svg'
-import viteLogo from '/vite.svg'
-import { setupCounter } from './counter.js'
+import RealtimeWebSocket from './realtime-websocket.js'
 
 // Clear body and set up main app container
 document.body.innerHTML = '';
@@ -24,26 +22,19 @@ app.innerHTML = `
         </div>
       </section>
       <section style="margin-top:2rem;">
-        <label for="mode-select">Mode:</label>
-        <select id="mode-select">
-          <option value="integrated">Integrated (OpenAI Realtime)</option>
-          <option value="modular">Modular (Set1/Set2)</option>
+        <label for="set-select">Set:</label>
+        <select id="set-select">
+          <option value="set1">Set1 (OpenAI)</option>
+          <option value="set2">Set2 (Google)</option>
         </select>
-        <span id="set-select-container" style="display:none;">
-          <label for="set-select">Set:</label>
-          <select id="set-select">
-            <option value="set1">Set1 (OpenAI)</option>
-            <option value="set2">Set2 (Google)</option>
-          </select>
-        </span>
       </section>
     </aside>
     <section class="visualization-dashboard">
       <div class="dashboard-header">
         <h2>Realtime Comparison</h2>
         <div class="dashboard-controls">
-          <button class="start-comparison-btn" disabled>Start Comparison</button>
-          <button class="reset-btn" disabled>Reset</button>
+          <button class="start-comparison-btn" id="start-comparison-btn" disabled>Start Comparison</button>
+          <button class="reset-btn" id="reset-btn" disabled>Reset</button>
         </div>
       </div>
       <div class="metrics-grid">
@@ -154,6 +145,10 @@ app.innerHTML = `
             </div>
           </div>
           <div class="result-transcript" id="realtime-transcript"></div>
+          <div class="result-audio" id="realtime-audio" style="margin-top: 10px; display: none;">
+            <strong>Audio Output:</strong>
+            <audio id="realtime-audio-player" controls style="margin-top: 5px; width: 100%;"></audio>
+          </div>
         </div>
       </div>
     </div>
@@ -201,6 +196,10 @@ app.innerHTML = `
             </div>
           </div>
           <div class="result-transcript" id="individual-transcript"></div>
+          <div class="result-audio" id="individual-audio" style="margin-top: 10px; display: none;">
+            <strong>Audio Output:</strong>
+            <audio id="individual-audio-player" controls style="margin-top: 5px; width: 100%;"></audio>
+          </div>
         </div>
       </div>
     </div>
@@ -242,38 +241,74 @@ function showResult(demoId, result) {
   if (result.quality) {
     document.getElementById(`${demoId}-quality`).textContent = result.quality;
   }
+  
+  // Update transcript display
+  const transcriptElement = document.getElementById(`${demoId}-transcript`);
   if (result.transcript) {
-    document.getElementById(`${demoId}-transcript`).textContent = result.transcript;
+    if (demoId === 'individual' && result.userTranscript && result.aiReply) {
+      // For modular API, show simple text format
+      transcriptElement.textContent = `User Input: ${result.userTranscript}\nAI Response: ${result.aiReply}`;
+    } else {
+      // For other APIs, show simple text
+      transcriptElement.textContent = result.transcript;
+    }
   }
   
-  // Update comparison chart
-  updateComparisonChart();
+  // Update audio display for modular API
+  if (demoId === 'individual' && result.audioData) {
+    const audioContainer = document.getElementById('individual-audio');
+    const audioPlayer = document.getElementById('individual-audio-player');
+    
+    // Convert base64 to blob and set as audio source
+    const audioBlob = new Blob([Uint8Array.from(atob(result.audioData), c => c.charCodeAt(0))], { type: 'audio/mpeg' });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    audioPlayer.src = audioUrl;
+    
+    // Show the audio container
+    audioContainer.style.display = 'block';
+  }
+  
+  // Update audio display for realtime API
+  if (demoId === 'realtime' && result.audioData) {
+    const audioContainer = document.getElementById('realtime-audio');
+    const audioPlayer = document.getElementById('realtime-audio-player');
+    
+    // Convert base64 to blob and set as audio source
+    const audioBlob = new Blob([Uint8Array.from(atob(result.audioData), c => c.charCodeAt(0))], { type: 'audio/mpeg' });
+    const audioUrl = URL.createObjectURL(audioBlob);
+    audioPlayer.src = audioUrl;
+    
+    // Show the audio container
+    audioContainer.style.display = 'block';
+  }
+  
+  // Store result
+  if (demoId === 'realtime') {
+    realtimeResult = result;
+  } else if (demoId === 'individual') {
+    individualResult = result;
+  }
+  
+  // Check if comparison is ready
+  checkComparisonReady();
 }
 
 function updateComparisonChart() {
   const chart = document.getElementById('comparison-chart');
   const placeholder = document.getElementById('comparison-placeholder');
   
-  // Get values from both demos
-  const realtimeTime = document.getElementById('realtime-processing-time').textContent;
-  const individualTime = document.getElementById('individual-processing-time').textContent;
-  const realtimeCost = document.getElementById('realtime-cost').textContent;
-  const individualCost = document.getElementById('individual-cost').textContent;
-  const realtimeQuality = document.getElementById('realtime-quality').textContent;
-  const individualQuality = document.getElementById('individual-quality').textContent;
-  
   // Check if we have results from both demos
-  if (realtimeTime !== '--' && individualTime !== '--') {
+  if (realtimeResult && individualResult) {
     chart.style.display = 'block';
     placeholder.style.display = 'none';
     
     // Update chart values
-    document.getElementById('chart-realtime-time-value').textContent = realtimeTime;
-    document.getElementById('chart-individual-time-value').textContent = individualTime;
-    document.getElementById('chart-realtime-cost-value').textContent = realtimeCost;
-    document.getElementById('chart-individual-cost-value').textContent = individualCost;
-    document.getElementById('chart-realtime-quality-value').textContent = realtimeQuality;
-    document.getElementById('chart-individual-quality-value').textContent = individualQuality;
+    document.getElementById('chart-realtime-time-value').textContent = `${realtimeResult.processingTime}ms`;
+    document.getElementById('chart-individual-time-value').textContent = `${individualResult.processingTime}ms`;
+    document.getElementById('chart-realtime-cost-value').textContent = realtimeResult.cost;
+    document.getElementById('chart-individual-cost-value').textContent = individualResult.cost;
+    document.getElementById('chart-realtime-quality-value').textContent = realtimeResult.quality;
+    document.getElementById('chart-individual-quality-value').textContent = individualResult.quality;
     
     // Update bar widths based on values
     updateChartBars();
@@ -282,12 +317,8 @@ function updateComparisonChart() {
 
 function updateChartBars() {
   // Processing Time (lower is better)
-  const realtimeTimeText = document.getElementById('realtime-processing-time').textContent;
-  const individualTimeText = document.getElementById('individual-processing-time').textContent;
-  
-  // Handle both "ms" suffix and raw numbers
-  const realtimeTime = parseInt(realtimeTimeText.replace('ms', ''));
-  const individualTime = parseInt(individualTimeText.replace('ms', ''));
+  const realtimeTime = realtimeResult.processingTime;
+  const individualTime = individualResult.processingTime;
   const maxTime = Math.max(realtimeTime, individualTime);
   
   const realtimeTimeBar = document.getElementById('chart-realtime-time');
@@ -296,8 +327,8 @@ function updateChartBars() {
   individualTimeBar.style.width = `${(individualTime / maxTime) * 100}%`;
   
   // Cost (lower is better) - handle different cost formats
-  const realtimeCostText = document.getElementById('realtime-cost').textContent;
-  const individualCostText = document.getElementById('individual-cost').textContent;
+  const realtimeCostText = realtimeResult.cost;
+  const individualCostText = individualResult.cost;
   
   // Extract numeric values from cost strings
   const realtimeCost = parseInt(realtimeCostText.replace(/[^\d]/g, ''));
@@ -310,14 +341,24 @@ function updateChartBars() {
   individualCostBar.style.width = `${(individualCost / maxCost) * 100}%`;
   
   // Quality (higher is better)
-  const realtimeQuality = parseInt(document.getElementById('realtime-quality').textContent);
-  const individualQuality = parseInt(document.getElementById('individual-quality').textContent);
+  const realtimeQuality = parseInt(realtimeResult.quality);
+  const individualQuality = parseInt(individualResult.quality);
   const maxQuality = Math.max(realtimeQuality, individualQuality);
   
   const realtimeQualityBar = document.getElementById('chart-realtime-quality');
   const individualQualityBar = document.getElementById('chart-individual-quality');
   realtimeQualityBar.style.width = `${(realtimeQuality / maxQuality) * 100}%`;
   individualQualityBar.style.width = `${(individualQuality / maxQuality) * 100}%`;
+}
+
+function checkComparisonReady() {
+  if (realtimeResult && individualResult) {
+    startComparisonBtn.disabled = false;
+    resetBtn.disabled = false;
+  } else {
+    startComparisonBtn.disabled = true;
+    resetBtn.disabled = true;
+  }
 }
 
 function resetResults() {
@@ -335,6 +376,12 @@ function resetResults() {
   document.getElementById('realtime-result').style.display = 'none';
   document.getElementById('individual-result').style.display = 'none';
   
+  // Hide audio containers
+  const realtimeAudio = document.getElementById('realtime-audio');
+  const individualAudio = document.getElementById('individual-audio');
+  if (realtimeAudio) realtimeAudio.style.display = 'none';
+  if (individualAudio) individualAudio.style.display = 'none';
+  
   // Reset metrics
   document.getElementById('processing-time').textContent = '--';
   document.getElementById('estimated-cost').textContent = '--';
@@ -344,31 +391,138 @@ function resetResults() {
   document.getElementById('comparison-placeholder').textContent = 'Comparison results will be displayed here';
   document.getElementById('comparison-placeholder').style.display = 'block';
   document.getElementById('comparison-chart').style.display = 'none';
+  
+  // Reset result tracking
+  realtimeResult = null;
+  individualResult = null;
+  checkComparisonReady();
 }
 
-// Initialize results display
-resetResults();
+// Initialize variables
+let mediaRecorder, audioChunks = [], isRecording = false;
+let processingStartTime = null;
+let realtimeResult = null;
+let individualResult = null;
 
-const modeSelect = document.getElementById('mode-select');
-const setSelectContainer = document.getElementById('set-select-container');
+// Initialize WebSocket for real-time processing
+const realtimeWs = new RealtimeWebSocket();
+let isRealtimeProcessing = false;
+
+// Get DOM elements after they're created
 const recordBtn = document.getElementById('record-btn');
 const transcriptDiv = document.getElementById('transcript');
 const audioPlayer = document.getElementById('audio-player');
+const startComparisonBtn = document.getElementById('start-comparison-btn');
+const resetBtn = document.getElementById('reset-btn');
 
-// Set Modular as default and disable Integrated option
-modeSelect.value = 'modular';
-modeSelect.querySelector('option[value="integrated"]').disabled = true;
-setSelectContainer.style.display = '';
-
-modeSelect.addEventListener('change', () => {
-  setSelectContainer.style.display = modeSelect.value === 'modular' ? '' : 'none';
-  console.log('Mode changed to', modeSelect.value);
+// Debug: Check if elements exist
+console.log('DOM elements found:', {
+  recordBtn: !!recordBtn,
+  transcriptDiv: !!transcriptDiv,
+  startComparisonBtn: !!startComparisonBtn,
+  resetBtn: !!resetBtn
 });
 
-let mediaRecorder, audioChunks = [], isRecording = false;
-let processingStartTime = null;
+// Initialize results display after DOM elements are available
+resetResults();
 
-recordBtn.onclick = async () => {
+// Button event handlers
+startComparisonBtn.addEventListener('click', () => {
+  if (realtimeResult && individualResult) {
+    updateComparisonChart();
+    console.log('Comparison triggered with results:', { realtimeResult, individualResult });
+  }
+});
+
+resetBtn.addEventListener('click', () => {
+  resetResults();
+  console.log('Results reset');
+});
+
+// WebSocket event handlers
+realtimeWs.onMessage((data) => {
+  console.log('Realtime message received:', data);
+  
+  // Handle OpenAI Realtime API message formats
+  if (data.type === 'response.create') {
+    // OpenAI response creation started
+    console.log('OpenAI response creation started');
+  } else if (data.type === 'response.delta') {
+    // OpenAI response delta (text streaming)
+    console.log('OpenAI response delta:', data.delta);
+    if (data.delta && data.delta.text) {
+      const transcriptDiv = document.getElementById('transcript');
+      transcriptDiv.textContent = data.delta.text;
+    }
+  } else if (data.type === 'response.done') {
+    // OpenAI response completed
+    console.log('OpenAI response completed');
+    updateStep('realtime', 3, true);
+    updateStatus('realtime', 'complete');
+    
+    // Calculate realtime processing time
+    const realtimeProcessingTime = Date.now() - processingStartTime;
+    console.log('Realtime processing completed in:', realtimeProcessingTime, 'ms');
+    
+    // Extract transcript and audio from the response
+    let transcript = '';
+    let audioData = null;
+    
+    if (data.response && data.response.content) {
+      data.response.content.forEach(item => {
+        if (item.type === 'text') {
+          transcript = item.text;
+        } else if (item.type === 'audio') {
+          audioData = item.audio;
+        }
+      });
+    }
+    
+    showResult('realtime', {
+      processingTime: realtimeProcessingTime,
+      cost: '$0.30/min',
+      quality: '-',
+      transcript: transcript || 'OpenAI Realtime API processing completed',
+      audioData: audioData
+    });
+  } else if (data.type === 'error') {
+    console.error('Realtime error:', data.message);
+    updateStatus('realtime', 'error');
+  } else {
+    // Log other message types for debugging
+    console.log('Other message type:', data.type, data);
+  }
+});
+
+realtimeWs.onError((error) => {
+  console.error('WebSocket error:', error);
+  updateStatus('realtime', 'error');
+});
+
+realtimeWs.onStatusChange((status) => {
+  console.log('WebSocket status changed:', status);
+  
+  if (status === 'connected') {
+    console.log('WebSocket connected successfully');
+    updateStatus('realtime', 'connected');
+    updateStep('realtime', 1, true);
+  } else if (status === 'processing') {
+    console.log('WebSocket processing started');
+    updateStatus('realtime', 'processing');
+    updateStep('realtime', 2, true);
+  } else if (status === 'idle') {
+    console.log('WebSocket processing stopped');
+    updateStatus('realtime', 'idle');
+  } else if (status === 'error') {
+    console.log('WebSocket error status');
+    updateStatus('realtime', 'error');
+  } else if (status === 'disconnected') {
+    console.log('WebSocket disconnected');
+    updateStatus('realtime', 'disconnected');
+  }
+});
+
+recordBtn.addEventListener('click', async () => {
   if (!isRecording) {
     // Start recording
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -396,123 +550,123 @@ recordBtn.onclick = async () => {
         processingStartTime = Date.now();
         console.log('Processing started at:', processingStartTime);
         
-        if (modeSelect.value === 'integrated') {
-          // Simulate Realtime API processing
-          updateStatus('realtime', 'processing');
-          updateStep('realtime', 1, true);
+        // Process audio using both APIs simultaneously
+        transcriptDiv.textContent = 'Processing audio with both APIs simultaneously...';
+        console.log('Processing audio with both APIs simultaneously');
+        
+        const set = document.getElementById('set-select').value;
+        const formData = new FormData();
+        formData.append('audio', audioBlob, mimeType === 'audio/ogg; codecs=opus' ? 'audio.ogg' : 'audio.webm');
+        formData.append('set', set);
+        
+        // Start both APIs simultaneously
+        const promises = [];
+        
+        // Start modular API processing
+        updateStatus('individual', 'processing');
+        updateStep('individual', 1, true);
+        
+        const modularPromise = fetch('http://localhost:3001/api/modular', {
+          method: 'POST',
+          body: formData
+        }).then(async (response) => {
+          console.log('Modular response status:', response.status);
+          const data = await response.json();
+          console.log('Modular response data:', data);
+          console.log('Transcript:', data.transcript);
+          console.log('User transcript:', data.userTranscript);
+          console.log('AI reply:', data.aiReply);
           
-          transcriptDiv.textContent = 'Sending audio to backend (integrated)...';
-          console.log('Sending audio to backend (integrated)');
-          const ws = new WebSocket('ws://localhost:3001/ws/integrated');
-          ws.onopen = () => {
-            ws.send(audioBlob);
-            console.log('Audio sent to WebSocket backend');
-            updateStep('realtime', 2, true);
-          };
-          ws.onmessage = (event) => {
-            transcriptDiv.textContent = event.data;
-            updateStep('realtime', 3, true);
-            updateStatus('realtime', 'complete');
-            
-            // Calculate actual processing time
-            const actualProcessingTime = Date.now() - processingStartTime;
-            console.log('Realtime processing completed in:', actualProcessingTime, 'ms');
-            showResult('realtime', {
-              processingTime: actualProcessingTime,
-              cost: '$0.30/min',
-              quality: '95%',
-              transcript: event.data
-            });
-            
-            // Update main metrics
-            document.getElementById('processing-time').textContent = actualProcessingTime;
-            document.getElementById('estimated-cost').textContent = '¥18/min';
-            document.getElementById('quality-score').textContent = '95%';
-            
-            ws.close();
-            console.log('Received message from WebSocket backend:', event.data);
-          };
-          ws.onerror = (err) => {
-            transcriptDiv.textContent = 'WebSocket error: ' + err.message;
-            updateStatus('realtime', 'error');
-            console.error('WebSocket error:', err);
-          };
-        } else {
-          // Simulate Individual Implementation processing
-          updateStatus('individual', 'processing');
-          updateStep('individual', 1, true);
-          
-          transcriptDiv.textContent = 'Sending audio to backend (modular)...';
-          console.log('Sending audio to backend (modular)');
-          const set = document.getElementById('set-select').value;
-          const formData = new FormData();
-          formData.append('audio', audioBlob, mimeType === 'audio/ogg; codecs=opus' ? 'audio.ogg' : 'audio.webm');
-          formData.append('set', set);
-          try {
-            console.log('Sending request to backend...');
-            const res = await fetch('http://localhost:3001/api/modular', {
-              method: 'POST',
-              body: formData
-            });
-            console.log('Response status:', res.status);
-            const data = await res.json();
-            console.log('Response data:', data);
-            if (!res.ok) {
-              transcriptDiv.textContent = `Error: ${data.error || 'Unknown error'}\n${data.details || ''}`;
-              updateStatus('individual', 'error');
-              console.error('Backend error:', data);
-              audioPlayer.style.display = 'none';
-              return;
-            }
-            
-            updateStep('individual', 2, true);
-            updateStep('individual', 3, true);
-            updateStatus('individual', 'complete');
-            
-            transcriptDiv.textContent = data.message || 'Received response.';
-            console.log('Received modular response:', data);
-
-            // Calculate actual processing time
-            const actualProcessingTime = Date.now() - processingStartTime;
-            console.log('Individual processing completed in:', actualProcessingTime, 'ms');
-            showResult('individual', {
-              processingTime: actualProcessingTime,
-              cost: '$0.15/min',
-              quality: '-',
-              transcript: data.message || 'Processed successfully'
-            });
-            
-            // Update main metrics
-            document.getElementById('processing-time').textContent = actualProcessingTime;
-            document.getElementById('estimated-cost').textContent = '¥9/min';
-            document.getElementById('quality-score').textContent = '90%';
-
-            // Play audio if returned
-            console.log('Sending audio request to backend...');
-            const audioRes = await fetch('http://localhost:3001/api/modular?audio=1', {
-              method: 'POST',
-              body: formData
-            });
-            console.log('Audio response status:', audioRes.status);
-            if (audioRes.ok) {
-              const audioBlob = await audioRes.blob();
-              console.log('Audio blob size:', audioBlob.size);
-              audioPlayer.src = URL.createObjectURL(audioBlob);
-              audioPlayer.style.display = '';
-              audioPlayer.play();
-              console.log('Playing TTS audio response');
-            } else {
-              audioPlayer.style.display = 'none';
-              console.warn('No audio returned from backend, status:', audioRes.status);
-              const errorText = await audioRes.text();
-              console.error('Audio request failed:', errorText);
-            }
-          } catch (err) {
-            transcriptDiv.textContent = 'Network or server error: ' + (err.message || err);
-            updateStatus('individual', 'error');
-            audioPlayer.style.display = 'none';
-            console.error('Fetch/network error:', err);
+          if (!response.ok) {
+            throw new Error(`Modular API Error: ${data.error || 'Unknown error'}\n${data.details || ''}`);
           }
+          
+          updateStep('individual', 2, true);
+          updateStep('individual', 3, true);
+          updateStatus('individual', 'complete');
+          
+          // Calculate modular processing time
+          const modularProcessingTime = Date.now() - processingStartTime;
+          console.log('Modular processing completed in:', modularProcessingTime, 'ms');
+          
+          return {
+            processingTime: modularProcessingTime,
+            cost: '$0.15/min',
+            quality: '-',
+            transcript: data.transcript || 'No transcript',
+            userTranscript: data.userTranscript || 'No transcript',
+            aiReply: data.aiReply || 'No reply',
+            audioData: data.audioData || null
+          };
+        }).catch((error) => {
+          console.error('Modular API error:', error);
+          updateStatus('individual', 'error');
+          throw error;
+        });
+        
+        // Start realtime API processing
+        updateStatus('realtime', 'processing');
+        updateStep('realtime', 1, true);
+        
+        // Test if WebSocket endpoint is available
+        const realtimePromise = realtimeWs.connect().then(() => {
+          console.log('🎯 WebSocket connected successfully in main.js');
+          console.log('🎯 Starting realtime processing...');
+          realtimeWs.startProcessing();
+          
+          // Send audio data to WebSocket
+          return new Promise((resolve, reject) => {
+            console.log('🎯 Setting up audio reader...');
+            const audioReader = new FileReader();
+            audioReader.onload = async () => {
+              try {
+                console.log('🎯 Audio reader loaded, converting blob to buffer...');
+                const audioBuffer = await realtimeWs.blobToBuffer(audioBlob);
+                console.log('🎯 Audio buffer created, size:', audioBuffer.length);
+                console.log('🎯 Sending audio to WebSocket...');
+                realtimeWs.sendAudio(audioBuffer);
+                console.log('🎯 Audio sent, waiting for response...');
+                // Don't stop processing here - let the WebSocket message handler handle it
+                // The stopProcessing will be called automatically when audio is returned
+                resolve();
+              } catch (error) {
+                console.error('🎯 Error in audio processing:', error);
+                reject(error);
+              }
+            };
+            audioReader.onerror = (error) => {
+              console.error('🎯 Audio reader error:', error);
+              reject(error);
+            };
+            console.log('🎯 Starting to read audio blob as ArrayBuffer...');
+            audioReader.readAsArrayBuffer(audioBlob);
+          });
+        }).catch((error) => {
+          console.error('🎯 Realtime API error:', error);
+          updateStatus('realtime', 'error');
+          // Don't throw error, just log it and continue with modular only
+          console.log('🎯 Realtime API failed, continuing with modular only');
+          return Promise.resolve(); // Resolve instead of throwing
+        });
+        
+        // Wait for both APIs to complete
+        try {
+          const [modularResult, realtimeResult] = await Promise.allSettled([modularPromise, realtimePromise]);
+          
+          if (modularResult.status === 'fulfilled') {
+            showResult('individual', modularResult.value);
+          }
+          
+          if (realtimeResult.status === 'rejected') {
+            console.log('Realtime API failed, showing only modular results');
+            updateStatus('realtime', 'error');
+          }
+          
+          // Realtime result will be handled by the WebSocket message handler if it succeeds
+          
+        } catch (error) {
+          console.error('Error processing with APIs:', error);
+          transcriptDiv.textContent = 'Error processing audio: ' + error.message;
         }
       };
       mediaRecorder.start();
@@ -530,4 +684,4 @@ recordBtn.onclick = async () => {
     isRecording = false;
     console.log('Recording stopped');
   }
-};
+});

@@ -1,22 +1,41 @@
 import Fastify from 'fastify';
-import websocketPlugin from 'fastify-websocket';
+import websocketPlugin from '@fastify/websocket';
 import dotenv from 'dotenv';
-import multipart from '@fastify/multipart';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import { FastifyRequest } from 'fastify';
 import fetch from 'node-fetch';
 import { FormData, Blob } from 'formdata-node';
-import '@fastify/multipart';
 import type { Response as FetchResponse } from 'node-fetch';
+import OpenAI from 'openai';
 
 dotenv.config();
 
-const fastify = Fastify({ logger: true });
-fastify.register(multipart);
-fastify.register(cors, {
-  origin: true,
-  credentials: true
-});
+async function start() {
+  const fastify = Fastify({ logger: true });
+
+  // Register WebSocket plugin first, before CORS
+  console.log('🔧 Registering WebSocket plugin...');
+  await fastify.register(websocketPlugin, {
+    options: {
+      clientTracking: true
+    }
+  });
+  console.log('✅ WebSocket plugin registered successfully');
+
+  fastify.register(multipart);
+  fastify.register(cors, {
+    origin: true,
+    credentials: true
+  });
+
+// Initialize OpenAI client (only if API key is available)
+let openai: OpenAI | null = null;
+if (process.env.OPENAI_API_KEY) {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+}
 
 // REST endpoint for Modular flow (stub)
 // --- Modular Speech-to-Speech Logic ---
@@ -56,7 +75,9 @@ async function openaiWhisperSTT(audioBuffer: Buffer, filename: string): Promise<
     if (!res.ok) throw new Error(`OpenAI Whisper STT failed: ${res.status} ${res.statusText}`);
     const data = await res.json() as any;
     fastify.log.info({ data }, '[openaiWhisperSTT] Whisper response JSON');
-    return data.text || '';
+    const result = data.text || '';
+    fastify.log.info({ result, resultLength: result.length }, '[openaiWhisperSTT] Final transcript');
+    return result;
   } catch (err) {
     fastify.log.error({ err }, '[openaiWhisperSTT] Error');
     throw err;
@@ -93,7 +114,9 @@ async function gpt4oLLM(prompt: string): Promise<string> {
     if (!res.ok) throw new Error(`OpenAI GPT-4o failed: ${res.status} ${res.statusText}`);
     const data = await res.json() as any;
     fastify.log.info({ data }, '[gpt4oLLM] GPT-4o response JSON');
-    return data.choices?.[0]?.message?.content || '';
+    const result = data.choices?.[0]?.message?.content || '';
+    fastify.log.info({ result, resultLength: result.length }, '[gpt4oLLM] Final LLM response');
+    return result;
   } catch (err) {
     fastify.log.error({ err }, '[gpt4oLLM] Error');
     throw err;
@@ -140,6 +163,8 @@ fastify.addHook('onRequest', (request, reply, done) => {
   fastify.log.info({ method: request.method, url: request.url }, 'Incoming request');
   done();
 });
+
+
 
 fastify.post('/api/modular', async (request: FastifyRequest, reply) => {
   const start = Date.now();
@@ -236,6 +261,12 @@ fastify.post('/api/modular', async (request: FastifyRequest, reply) => {
       const safeFilename = audioFilename || 'audio.webm';
       transcript = await openaiWhisperSTT(audioBuffer, safeFilename);
       fastify.log.info({ transcript, sttDuration: Date.now() - sttStart }, 'STT result');
+      
+      // If transcript is empty, provide a fallback
+      if (!transcript || transcript.trim() === '') {
+        transcript = '[No speech detected]';
+        fastify.log.warn('STT returned empty transcript, using fallback');
+      }
       fastify.log.info('Calling GPT-4o LLM');
       const llmStart = Date.now();
       assistantReply = await gpt4oLLM(transcript);
@@ -275,9 +306,14 @@ fastify.post('/api/modular', async (request: FastifyRequest, reply) => {
     // Otherwise, return JSON
     fastify.log.info('Sending JSON response');
     fastify.log.info('--- /api/modular handler END (json) ---');
+    // Debug logging
+    fastify.log.info({ transcript, assistantReply }, 'Final response data');
+    
     reply.send({
-      transcript,
-      assistantReply,
+      transcript: `User: ${transcript} | AI Reply: ${assistantReply}`,
+      userTranscript: transcript,
+      aiReply: assistantReply,
+      audioData: ttsAudio.toString('base64'),
       message: `[${set}] Transcript: ${transcript} | Reply: ${assistantReply}`
       // To get audio, send ?audio=1 or Accept: audio/mpeg
     });
@@ -294,22 +330,127 @@ fastify.post('/api/modular', async (request: FastifyRequest, reply) => {
   }
 });
 
-// WebSocket endpoint for Integrated flow (stub)
-// Only register websocket if realtime is enabled
-if (process.env.ENABLE_REALTIME === '1') {
-  fastify.register(websocketPlugin);
-  fastify.get('/ws/integrated', { websocket: true }, (connection /*, req */) => {
-    connection.socket.on('message', (message: string) => {
-      // TODO: Proxy audio to OpenAI Realtime API and stream response
-      connection.socket.send('WebSocket stub: received ' + message);
-    });
+// WebSocket proxy endpoint for OpenAI Realtime API
+fastify.get('/ws/openai-realtime', { websocket: true }, (connection, req) => {
+  fastify.log.info('WebSocket proxy connection established for OpenAI Realtime API');
+  
+  let openaiWs: any = null;
+  let isOpenAIConnected = false;
+  let pendingMessages: string[] = [];
+
+  const socket = connection;
+  
+  if (!socket) {
+    fastify.log.error('❌ No socket object found!');
+    return;
+  }
+
+  // Connect to OpenAI Realtime API
+  const connectToOpenAI = async () => {
+    try {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OpenAI API key not configured');
+      }
+
+      const url = "wss://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview-2024-12-17";
+      const WebSocket = require('ws');
+      
+      openaiWs = new WebSocket(url, {
+        headers: {
+          "Authorization": "Bearer " + apiKey,
+          "OpenAI-Beta": "realtime=v1",
+        },
+      });
+
+      openaiWs.on('open', () => {
+        fastify.log.info('✅ Connected to OpenAI Realtime API');
+        isOpenAIConnected = true;
+        socket.send(JSON.stringify({ type: 'connected' }));
+        
+        // Send any pending messages
+        while (pendingMessages.length > 0) {
+          const message = pendingMessages.shift();
+          if (message) {
+            fastify.log.info('📤 Sending pending message to OpenAI:', message);
+            openaiWs.send(message);
+          }
+        }
+      });
+
+      openaiWs.on('message', (data: Buffer) => {
+        try {
+          const message = JSON.parse(data.toString());
+          fastify.log.info('📨 OpenAI message:', message);
+          // Forward message to client
+          socket.send(JSON.stringify(message));
+        } catch (error) {
+          fastify.log.error('Error parsing OpenAI message:', error);
+        }
+      });
+
+      openaiWs.on('error', (error: any) => {
+        fastify.log.error('OpenAI WebSocket error:', error);
+        isOpenAIConnected = false;
+        socket.send(JSON.stringify({ type: 'error', message: error.message }));
+      });
+
+      openaiWs.on('close', () => {
+        fastify.log.info('OpenAI WebSocket closed');
+        isOpenAIConnected = false;
+        socket.send(JSON.stringify({ type: 'disconnected' }));
+      });
+
+    } catch (error) {
+      fastify.log.error('Failed to connect to OpenAI:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      socket.send(JSON.stringify({ type: 'error', message: errorMessage }));
+    }
+  };
+
+  // Connect to OpenAI when client connects
+  connectToOpenAI();
+  
+  socket.on('message', async (message: Buffer) => {
+    try {
+      const messageStr = message.toString();
+      const data = JSON.parse(messageStr);
+      
+      fastify.log.info('📤 Client message to OpenAI:', data);
+      
+      if (isOpenAIConnected && openaiWs && openaiWs.readyState === 1) { // WebSocket.OPEN
+        openaiWs.send(messageStr);
+      } else {
+        fastify.log.info('⏳ OpenAI not ready yet, queuing message');
+        pendingMessages.push(messageStr);
+        socket.send(JSON.stringify({ type: 'queued', message: 'Message queued, waiting for OpenAI connection' }));
+      }
+      
+    } catch (error) {
+      fastify.log.error('Error processing client message:', error);
+      socket.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
+    }
+  });
+  
+  socket.on('close', () => {
+    fastify.log.info('Client WebSocket connection closed');
+    if (openaiWs) {
+      openaiWs.close();
+    }
+  });
+  
+  socket.on('error', (error: any) => {
+    fastify.log.error('Client WebSocket error:', error);
+  });
+});
+
+  fastify.listen({ port: 3001 }, (err, address) => {
+    if (err) {
+      console.error(err);
+      process.exit(1);
+    }
+    console.log(`Backend listening at ${address}`);
   });
 }
 
-fastify.listen({ port: 3001 }, (err, address) => {
-  if (err) {
-    console.error(err);
-    process.exit(1);
-  }
-  console.log(`Backend listening at ${address}`);
-}); 
+start().catch(console.error);

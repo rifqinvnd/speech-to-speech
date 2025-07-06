@@ -4,11 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --debug",
+    "dev:simple": "vite --debug",
     "build": "vite build",
     "preview": "vite preview"
   },
   "devDependencies": {
-    "vite": "^7.0.0"
+    "vite": "^7.0.2"
+  },
+  "dependencies": {
+    "openai": "^5.8.2"
   }
 }
