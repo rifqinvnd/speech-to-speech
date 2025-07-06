@@ -330,9 +330,9 @@ fastify.post('/api/modular', async (request: FastifyRequest, reply) => {
   }
 });
 
-// WebSocket proxy endpoint for OpenAI Realtime API
+// WebSocket proxy endpoint for OpenAI Realtime STS API
 fastify.get('/ws/openai-realtime', { websocket: true }, (connection, req) => {
-  fastify.log.info('WebSocket proxy connection established for OpenAI Realtime API');
+  fastify.log.info('WebSocket proxy connection established for OpenAI Realtime STS API');
   
   let openaiWs: any = null;
   let isOpenAIConnected = false;
@@ -382,8 +382,24 @@ fastify.get('/ws/openai-realtime', { websocket: true }, (connection, req) => {
         try {
           const message = JSON.parse(data.toString());
           fastify.log.info('📨 OpenAI message:', message);
-          // Forward message to client
-          socket.send(JSON.stringify(message));
+          
+          // Handle specific message types
+          switch (message.type) {
+            case 'response.audio.delta': {
+              // Forward audio delta to client
+              socket.send(JSON.stringify(message));
+              break;
+            }
+            case 'response.audio.done': {
+              // Forward audio done to client
+              socket.send(JSON.stringify(message));
+              break;
+            }
+            default: {
+              // Forward all other messages to client
+              socket.send(JSON.stringify(message));
+            }
+          }
         } catch (error) {
           fastify.log.error('Error parsing OpenAI message:', error);
         }

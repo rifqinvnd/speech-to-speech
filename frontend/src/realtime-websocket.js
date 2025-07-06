@@ -107,25 +107,11 @@ class RealtimeWebSocket {
       throw new Error('WebSocket not connected');
     }
 
-    // OpenAI Realtime API session update message format
-    const message = {
-      type: "session.update",
-      session: {
-        model: "gpt-4o-realtime-preview-2024-12-17"
-      }
-    };
-    const messageStr = JSON.stringify(message);
-    console.log('📤 Start message string:', messageStr);
+    // For STS, we don't need to send a start message
+    // The session is established when we connect
+    console.log('📤 Starting STS processing');
     console.log('📤 WebSocket readyState:', this.ws.readyState);
     console.log('📤 WebSocket URL:', this.ws.url);
-    
-    try {
-      this.ws.send(messageStr);
-      console.log('✅ Start message sent successfully');
-    } catch (error) {
-      console.error('❌ Error sending start message:', error);
-      throw error;
-    }
     
     this.isProcessing = true;
     this.updateStatus('processing');
@@ -139,11 +125,13 @@ class RealtimeWebSocket {
     // Convert Uint8Array to base64 string
     const base64Data = btoa(String.fromCharCode.apply(null, audioBuffer));
     
-    // OpenAI Realtime API input audio buffer append message format
+    // OpenAI Realtime STS API conversation item create message format
     const message = {
-      type: "input_audio_buffer.append",
-      input_audio_buffer: {
-        data: base64Data
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_audio", audio: base64Data }]
       }
     };
     const messageStr = JSON.stringify(message);
@@ -162,9 +150,13 @@ class RealtimeWebSocket {
 
   stopProcessing() {
     if (this.ws && this.isConnected) {
-      // OpenAI Realtime API input audio buffer commit message format
+      // OpenAI Realtime STS API response create message format
       const message = {
-        type: "input_audio_buffer.commit"
+        type: "response.create",
+        response: { 
+          modalities: ["audio", "text"],
+          instructions: "Assist the user via voice." 
+        }
       };
       const messageStr = JSON.stringify(message);
       console.log('📤 Stop message string:', messageStr);

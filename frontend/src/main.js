@@ -1,6 +1,55 @@
 import './style.css'
 import RealtimeWebSocket from './realtime-websocket.js'
 
+// Audio conversion function for OpenAI Realtime API
+async function convertToPCM16(audioBuffer) {
+  return new Promise((resolve, reject) => {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const fileReader = new FileReader();
+    
+    fileReader.onload = async () => {
+      try {
+        // Decode the audio data
+        const arrayBuffer = fileReader.result;
+        const audioData = await audioContext.decodeAudioData(arrayBuffer);
+        
+        // Create offline context for resampling
+        const offlineContext = new OfflineAudioContext(1, audioData.length, 24000);
+        const source = offlineContext.createBufferSource();
+        source.buffer = audioData;
+        source.connect(offlineContext.destination);
+        source.start();
+        
+        // Render the audio
+        const renderedBuffer = await offlineContext.startRendering();
+        
+        // Convert to PCM16
+        const channelData = renderedBuffer.getChannelData(0);
+        const pcm16Data = new Int16Array(channelData.length);
+        
+        for (let i = 0; i < channelData.length; i++) {
+          // Convert float to 16-bit integer
+          const sample = Math.max(-1, Math.min(1, channelData[i]));
+          pcm16Data[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+        }
+        
+        // Convert to Uint8Array for base64 encoding
+        const uint8Array = new Uint8Array(pcm16Data.buffer);
+        resolve(uint8Array);
+        
+      } catch (error) {
+        reject(error);
+      }
+    };
+    
+    fileReader.onerror = reject;
+    
+    // Create a blob from the audio buffer and read it
+    const blob = new Blob([audioBuffer], { type: 'audio/wav' });
+    fileReader.readAsArrayBuffer(blob);
+  });
+}
+
 // Clear body and set up main app container
 document.body.innerHTML = '';
 
@@ -403,6 +452,9 @@ let mediaRecorder, audioChunks = [], isRecording = false;
 let processingStartTime = null;
 let realtimeResult = null;
 let individualResult = null;
+let realtimeAudioDone = false;
+let realtimeTimeoutId = null;
+let audioChunksRealtime = [];
 
 // Initialize WebSocket for real-time processing
 const realtimeWs = new RealtimeWebSocket();
@@ -411,7 +463,6 @@ let isRealtimeProcessing = false;
 // Get DOM elements after they're created
 const recordBtn = document.getElementById('record-btn');
 const transcriptDiv = document.getElementById('transcript');
-const audioPlayer = document.getElementById('audio-player');
 const startComparisonBtn = document.getElementById('start-comparison-btn');
 const resetBtn = document.getElementById('reset-btn');
 
@@ -443,48 +494,42 @@ resetBtn.addEventListener('click', () => {
 realtimeWs.onMessage((data) => {
   console.log('Realtime message received:', data);
   
-  // Handle OpenAI Realtime API message formats
+  // Handle OpenAI Realtime STS API message formats
   if (data.type === 'response.create') {
     // OpenAI response creation started
     console.log('OpenAI response creation started');
-  } else if (data.type === 'response.delta') {
-    // OpenAI response delta (text streaming)
-    console.log('OpenAI response delta:', data.delta);
-    if (data.delta && data.delta.text) {
-      const transcriptDiv = document.getElementById('transcript');
-      transcriptDiv.textContent = data.delta.text;
+  } else if (data.type === 'response.audio.delta') {
+    // Each delta is base64-encoded PCM16 chunk
+    if (data.delta) {
+      audioChunksRealtime.push(data.delta);
     }
-  } else if (data.type === 'response.done') {
-    // OpenAI response completed
-    console.log('OpenAI response completed');
+  } else if (data.type === 'response.audio.done') {
+    realtimeAudioDone = true;
+    if (realtimeTimeoutId) {
+      clearTimeout(realtimeTimeoutId);
+      realtimeTimeoutId = null;
+    }
+    // OpenAI audio response completed
+    console.log('OpenAI audio response completed');
     updateStep('realtime', 3, true);
     updateStatus('realtime', 'complete');
-    
-    // Calculate realtime processing time
     const realtimeProcessingTime = Date.now() - processingStartTime;
-    console.log('Realtime processing completed in:', realtimeProcessingTime, 'ms');
-    
-    // Extract transcript and audio from the response
-    let transcript = '';
-    let audioData = null;
-    
-    if (data.response && data.response.content) {
-      data.response.content.forEach(item => {
-        if (item.type === 'text') {
-          transcript = item.text;
-        } else if (item.type === 'audio') {
-          audioData = item.audio;
-        }
-      });
-    }
-    
     showResult('realtime', {
       processingTime: realtimeProcessingTime,
       cost: '$0.30/min',
       quality: '-',
-      transcript: transcript || 'OpenAI Realtime API processing completed',
-      audioData: audioData
+      transcript: 'OpenAI Realtime API processing completed',
+      audioData: null
     });
+    // Handle audio playback
+    if (audioChunksRealtime.length > 0) {
+      const wavBlob = pcm16ChunksToWavBlob(audioChunksRealtime, 24000);
+      const audioUrl = URL.createObjectURL(wavBlob);
+      const audioPlayer = document.getElementById('realtime-audio-player');
+      audioPlayer.src = audioUrl;
+      document.getElementById('realtime-audio').style.display = 'block';
+      audioChunksRealtime = [];
+    }
   } else if (data.type === 'error') {
     console.error('Realtime error:', data.message);
     updateStatus('realtime', 'error');
@@ -521,6 +566,54 @@ realtimeWs.onStatusChange((status) => {
     updateStatus('realtime', 'disconnected');
   }
 });
+
+function pcm16ChunksToWavBlob(base64Chunks, sampleRate) {
+  // Decode all base64 chunks and concatenate
+  let pcmData = [];
+  base64Chunks.forEach(b64 => {
+    const bin = atob(b64);
+    for (let i = 0; i < bin.length; i++) {
+      pcmData.push(bin.charCodeAt(i));
+    }
+  });
+  const pcm16 = new Uint8Array(pcmData);
+
+  // WAV header
+  const wavBuffer = new ArrayBuffer(44 + pcm16.length);
+  const view = new DataView(wavBuffer);
+
+  // RIFF identifier 'RIFF'
+  view.setUint32(0, 0x52494646, false);
+  // file length minus RIFF identifier length and file description length
+  view.setUint32(4, 36 + pcm16.length, true);
+  // RIFF type 'WAVE'
+  view.setUint32(8, 0x57415645, false);
+  // format chunk identifier 'fmt '
+  view.setUint32(12, 0x666d7420, false);
+  // format chunk length
+  view.setUint32(16, 16, true);
+  // sample format (raw)
+  view.setUint16(20, 1, true);
+  // channel count
+  view.setUint16(22, 1, true);
+  // sample rate
+  view.setUint32(24, sampleRate, true);
+  // byte rate (sample rate * block align)
+  view.setUint32(28, sampleRate * 2, true);
+  // block align (channel count * bytes per sample)
+  view.setUint16(32, 2, true);
+  // bits per sample
+  view.setUint16(34, 16, true);
+  // data chunk identifier 'data'
+  view.setUint32(36, 0x64617461, false);
+  // data chunk length
+  view.setUint32(40, pcm16.length, true);
+
+  // Write PCM samples
+  new Uint8Array(wavBuffer, 44).set(pcm16);
+
+  return new Blob([wavBuffer], { type: 'audio/wav' });
+}
 
 recordBtn.addEventListener('click', async () => {
   if (!isRecording) {
@@ -623,11 +716,35 @@ recordBtn.addEventListener('click', async () => {
                 console.log('🎯 Audio reader loaded, converting blob to buffer...');
                 const audioBuffer = await realtimeWs.blobToBuffer(audioBlob);
                 console.log('🎯 Audio buffer created, size:', audioBuffer.length);
+                
+                // Convert audio to PCM16 24kHz format for OpenAI
+                console.log('🎯 Converting audio to PCM16 24kHz...');
+                const pcmBuffer = await convertToPCM16(audioBuffer);
+                console.log('🎯 PCM16 conversion completed, size:', pcmBuffer.length);
+                
                 console.log('🎯 Sending audio to WebSocket...');
-                realtimeWs.sendAudio(audioBuffer);
-                console.log('🎯 Audio sent, waiting for response...');
-                // Don't stop processing here - let the WebSocket message handler handle it
-                // The stopProcessing will be called automatically when audio is returned
+                realtimeWs.sendAudio(pcmBuffer);
+                console.log('🎯 Audio sent, requesting response...');
+                realtimeWs.stopProcessing();
+                console.log('🎯 Response requested, waiting for OpenAI...');
+                // Set a 5-second timeout to handle no response
+                realtimeAudioDone = false;
+                if (realtimeTimeoutId) clearTimeout(realtimeTimeoutId);
+                realtimeTimeoutId = setTimeout(() => {
+                  if (!realtimeAudioDone) {
+                    console.warn('⏰ Timeout: No response.audio.done received after 5 seconds.');
+                    updateStep('realtime', 3, true);
+                    updateStatus('realtime', 'complete');
+                    showResult('realtime', {
+                      processingTime: Date.now() - processingStartTime,
+                      cost: '$0.30/min',
+                      quality: '-',
+                      transcript: 'Timeout: No response from OpenAI',
+                      audioData: null
+                    });
+                    // Optionally: realtimeWs.disconnect();
+                  }
+                }, 5000);
                 resolve();
               } catch (error) {
                 console.error('🎯 Error in audio processing:', error);
